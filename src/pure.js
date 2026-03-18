@@ -411,7 +411,11 @@ async function renderAsync(ui, options) {
 
   // Wrap in Suspense so components using use() with Promises suspend
   // correctly, and use async act() to flush all pending suspensions.
-  const wrapped = React.createElement(React.Suspense, {fallback: null}, resolvedUi)
+  const wrapped = React.createElement(
+    React.Suspense,
+    {fallback: null},
+    resolvedUi,
+  )
 
   let result
   await act(async () => {

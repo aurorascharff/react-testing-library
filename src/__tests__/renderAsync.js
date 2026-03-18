@@ -287,59 +287,51 @@ describe('renderAsync with use()', () => {
           dataPromise={Promise.resolve({message: 'loaded via use'})}
         />,
       )
-      expect(screen.getByTestId('use-data')).toHaveTextContent(
-        'loaded via use',
+      expect(screen.getByTestId('use-data')).toHaveTextContent('loaded via use')
+    },
+  )
+
+  testGateReact19('renders component using use() with list data', async () => {
+    function UseFetchComponent({itemsPromise}) {
+      const data = React.use(itemsPromise)
+      return (
+        <ul data-testid="use-list">
+          {data.items.map(item => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
       )
-    },
-  )
+    }
 
-  testGateReact19(
-    'renders component using use() with list data',
-    async () => {
-      function UseFetchComponent({itemsPromise}) {
-        const data = React.use(itemsPromise)
-        return (
-          <ul data-testid="use-list">
-            {data.items.map(item => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        )
-      }
+    await renderAsync(
+      <UseFetchComponent
+        itemsPromise={Promise.resolve({items: ['x', 'y', 'z']})}
+      />,
+    )
+    const list = screen.getByTestId('use-list')
+    expect(list.children).toHaveLength(3)
+  })
 
-      await renderAsync(
-        <UseFetchComponent
-          itemsPromise={Promise.resolve({items: ['x', 'y', 'z']})}
-        />,
+  testGateReact19('renders async parent with use()-based child', async () => {
+    function UseChild({textPromise}) {
+      const data = React.use(textPromise)
+      return <span data-testid="use-child">{data.text}</span>
+    }
+
+    async function AsyncParentWithUseChild() {
+      const title = await Promise.resolve('Async Title')
+      return (
+        <div data-testid="async-use-parent">
+          <h1>{title}</h1>
+          <UseChild textPromise={Promise.resolve({text: 'from use'})} />
+        </div>
       )
-      const list = screen.getByTestId('use-list')
-      expect(list.children).toHaveLength(3)
-    },
-  )
+    }
 
-  testGateReact19(
-    'renders async parent with use()-based child',
-    async () => {
-      function UseChild({textPromise}) {
-        const data = React.use(textPromise)
-        return <span data-testid="use-child">{data.text}</span>
-      }
-
-      async function AsyncParentWithUseChild() {
-        const title = await Promise.resolve('Async Title')
-        return (
-          <div data-testid="async-use-parent">
-            <h1>{title}</h1>
-            <UseChild textPromise={Promise.resolve({text: 'from use'})} />
-          </div>
-        )
-      }
-
-      await renderAsync(<AsyncParentWithUseChild />)
-      expect(screen.getByTestId('async-use-parent')).toBeInTheDocument()
-      expect(screen.getByTestId('use-child')).toHaveTextContent('from use')
-    },
-  )
+    await renderAsync(<AsyncParentWithUseChild />)
+    expect(screen.getByTestId('async-use-parent')).toBeInTheDocument()
+    expect(screen.getByTestId('use-child')).toHaveTextContent('from use')
+  })
 
   testGateReact19('renders use() with context', async () => {
     const ThemeContext = React.createContext('light')
@@ -368,9 +360,7 @@ describe('renderAsync with use()', () => {
     )
     expect(screen.getByTestId('use-greeting')).toHaveTextContent('Hello Alice')
 
-    await rerender(
-      <UseGreeting namePromise={Promise.resolve('Bob')} />,
-    )
+    await rerender(<UseGreeting namePromise={Promise.resolve('Bob')} />)
     expect(screen.getByTestId('use-greeting')).toHaveTextContent('Hello Bob')
   })
 
