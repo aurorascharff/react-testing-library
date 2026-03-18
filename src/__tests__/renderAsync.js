@@ -260,6 +260,21 @@ describe('renderAsync', () => {
     expect(screen.getByTestId('content')).toHaveTextContent('Content')
   })
 
+  test('passes through non-element objects in children unchanged', async () => {
+    function Container({children}) {
+      return <div data-testid="container">{String(children)}</div>
+    }
+
+    const plainObj = {
+      toString() {
+        return 'stringified'
+      },
+    }
+
+    await renderAsync(React.createElement(Container, null, plainObj))
+    expect(screen.getByTestId('container')).toHaveTextContent('stringified')
+  })
+
   test('returns standard render result properties', async () => {
     const {container, baseElement, debug, unmount, asFragment} =
       await renderAsync(<AsyncHelloWorld />)

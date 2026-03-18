@@ -350,37 +350,34 @@ async function resolveElement(element) {
 }
 
 async function resolveElementProps(element) {
-  const props = element.props
-  if (props == null) {
-    return element
-  }
+  const keys = Object.keys(element.props).filter(k => k !== 'children')
 
-  let propsChanged = false
-  let childrenChanged = false
-  const newProps = {}
-  let resolvedChildren
-
-  for (const key of Object.keys(props)) {
-    const value = props[key]
-
-    if (key === 'children') {
-      resolvedChildren = await resolveElement(value)
-      childrenChanged = resolvedChildren !== value
-      continue
-    }
-
-    // Only resolve values that are React elements to avoid inadvertently
-    // awaiting Promise-valued props (e.g. dataPromise for use())
-    if (React.isValidElement(value)) {
-      const resolved = await resolveElement(value)
-      newProps[key] = resolved
-      if (resolved !== value) {
-        propsChanged = true
+  // Resolve React-element-valued props in parallel.
+  // Wrap results in {value, changed} objects so Promise.all does not
+  // inadvertently flatten Promise-valued props (e.g. dataPromise for use()).
+  const results = await Promise.all(
+    keys.map(key => {
+      const value = element.props[key]
+      if (React.isValidElement(value)) {
+        return resolveElement(value).then(resolved => ({
+          value: resolved,
+          changed: resolved !== value,
+        }))
       }
-    } else {
-      newProps[key] = value
-    }
-  }
+      return {value, changed: false}
+    }),
+  )
+
+  const propsChanged = results.some(r => r.changed)
+  const newProps = {}
+  keys.forEach((key, i) => {
+    newProps[key] = results[i].value
+  })
+
+  const children = element.props.children
+  const resolvedChildren =
+    children == null ? children : await resolveElement(children)
+  const childrenChanged = resolvedChildren !== children
 
   if (!propsChanged && !childrenChanged) {
     return element
