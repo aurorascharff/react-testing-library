@@ -325,13 +325,16 @@ function isAsyncFunction(fn) {
 // in the element tree before passing to React's client-side renderer.
 // This replicates the implicit use() behavior that React's server renderer
 // provides for async components but which the client renderer does not support.
+// Walks all props (not just children) so async components passed as e.g.
+// sidebar, fallback, or header props are also resolved.
 async function resolveElement(element) {
   if (element == null || typeof element !== 'object') {
     return element
   }
 
   if (Array.isArray(element)) {
-    return Promise.all(element.map(resolveElement))
+    const resolved = await Promise.all(element.map(resolveElement))
+    return resolved.some((r, i) => r !== element[i]) ? resolved : element
   }
 
   if (!React.isValidElement(element)) {
@@ -343,21 +346,64 @@ async function resolveElement(element) {
     return resolveElement(resolved)
   }
 
-  const children = element.props?.children
-  if (children == null) {
+  return resolveElementProps(element)
+}
+
+async function resolveElementProps(element) {
+  const props = element.props
+  if (props == null) {
     return element
   }
 
-  const resolvedChildren = await resolveElement(children)
+  let propsChanged = false
+  let childrenChanged = false
+  const newProps = {}
+  let resolvedChildren
 
-  if (resolvedChildren === children) {
+  for (const key of Object.keys(props)) {
+    const value = props[key]
+
+    if (key === 'children') {
+      resolvedChildren = await resolveElement(value)
+      childrenChanged = resolvedChildren !== value
+      continue
+    }
+
+    // Only resolve values that are React elements to avoid inadvertently
+    // awaiting Promise-valued props (e.g. dataPromise for use())
+    if (React.isValidElement(value)) {
+      const resolved = await resolveElement(value)
+      newProps[key] = resolved
+      if (resolved !== value) {
+        propsChanged = true
+      }
+    } else {
+      newProps[key] = value
+    }
+  }
+
+  if (!propsChanged && !childrenChanged) {
     return element
   }
 
-  if (Array.isArray(resolvedChildren)) {
-    return React.cloneElement(element, undefined, ...resolvedChildren)
+  // Spread children as separate arguments to cloneElement to preserve
+  // positional identity and avoid "missing key" warnings
+  if (childrenChanged) {
+    if (Array.isArray(resolvedChildren)) {
+      return React.cloneElement(
+        element,
+        propsChanged ? newProps : undefined,
+        ...resolvedChildren,
+      )
+    }
+    return React.cloneElement(
+      element,
+      propsChanged ? newProps : undefined,
+      resolvedChildren,
+    )
   }
-  return React.cloneElement(element, undefined, resolvedChildren)
+
+  return React.cloneElement(element, newProps)
 }
 
 async function renderAsync(ui, options) {

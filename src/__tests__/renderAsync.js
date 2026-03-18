@@ -209,6 +209,57 @@ describe('renderAsync', () => {
     expect(screen.getByTestId('child')).toHaveTextContent('Child Content')
   })
 
+  test('resolves async components passed as non-children props', async () => {
+    async function AsyncSidebar() {
+      return <nav data-testid="async-sidebar">Sidebar Content</nav>
+    }
+
+    async function AsyncHeader() {
+      return <header data-testid="async-header">Header Content</header>
+    }
+
+    function Layout({sidebar, header, children}) {
+      return (
+        <div data-testid="layout">
+          {header}
+          <aside>{sidebar}</aside>
+          <main>{children}</main>
+        </div>
+      )
+    }
+
+    await renderAsync(
+      <Layout sidebar={<AsyncSidebar />} header={<AsyncHeader />}>
+        <div data-testid="main-content">Main</div>
+      </Layout>,
+    )
+    expect(screen.getByTestId('layout')).toBeInTheDocument()
+    expect(screen.getByTestId('async-sidebar')).toHaveTextContent(
+      'Sidebar Content',
+    )
+    expect(screen.getByTestId('async-header')).toHaveTextContent(
+      'Header Content',
+    )
+    expect(screen.getByTestId('main-content')).toHaveTextContent('Main')
+  })
+
+  test('resolves async component in Suspense fallback prop', async () => {
+    async function AsyncFallback() {
+      return <div data-testid="resolved-fallback">Resolved Fallback</div>
+    }
+
+    function SyncContent() {
+      return <div data-testid="content">Content</div>
+    }
+
+    await renderAsync(
+      <React.Suspense fallback={<AsyncFallback />}>
+        <SyncContent />
+      </React.Suspense>,
+    )
+    expect(screen.getByTestId('content')).toHaveTextContent('Content')
+  })
+
   test('returns standard render result properties', async () => {
     const {container, baseElement, debug, unmount, asFragment} =
       await renderAsync(<AsyncHelloWorld />)
