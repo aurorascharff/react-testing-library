@@ -317,6 +317,77 @@ function cleanup() {
   mountedContainers.clear()
 }
 
+function isAsyncFunction(fn) {
+  return Object.prototype.toString.call(fn) === '[object AsyncFunction]'
+}
+
+// Recursively resolve async function components (React Server Components)
+// in the element tree before passing to React's client-side renderer.
+// This replicates the implicit use() behavior that React's server renderer
+// provides for async components but which the client renderer does not support.
+async function resolveElement(element) {
+  if (element == null || typeof element !== 'object') {
+    return element
+  }
+
+  if (Array.isArray(element)) {
+    return Promise.all(element.map(resolveElement))
+  }
+
+  if (!React.isValidElement(element)) {
+    return element
+  }
+
+  if (typeof element.type === 'function' && isAsyncFunction(element.type)) {
+    const resolved = await element.type({...element.props})
+    return resolveElement(resolved)
+  }
+
+  const children = element.props?.children
+  if (children == null) {
+    return element
+  }
+
+  const resolvedChildren = await resolveElement(children)
+
+  if (resolvedChildren === children) {
+    return element
+  }
+
+  if (Array.isArray(resolvedChildren)) {
+    return React.cloneElement(element, undefined, ...resolvedChildren)
+  }
+  return React.cloneElement(element, undefined, resolvedChildren)
+}
+
+async function renderAsync(ui, options) {
+  const resolvedUi = await resolveElement(ui)
+
+  // Wrap in Suspense so components using use() with Promises suspend
+  // correctly, and use async act() to flush all pending suspensions.
+  const wrapped = React.createElement(React.Suspense, {fallback: null}, resolvedUi)
+
+  let result
+  await act(async () => {
+    result = render(wrapped, options)
+  })
+
+  return {
+    ...result,
+    rerender: async rerenderUi => {
+      const resolvedRerenderUi = await resolveElement(rerenderUi)
+      const wrappedRerender = React.createElement(
+        React.Suspense,
+        {fallback: null},
+        resolvedRerenderUi,
+      )
+      await act(async () => {
+        result.rerender(wrappedRerender)
+      })
+    },
+  }
+}
+
 function renderHook(renderCallback, options = {}) {
   const {initialProps, ...renderOptions} = options
 
@@ -358,6 +429,15 @@ function renderHook(renderCallback, options = {}) {
 
 // just re-export everything from dom-testing-library
 export * from '@testing-library/dom'
-export {render, renderHook, cleanup, act, fireEvent, getConfig, configure}
+export {
+  render,
+  renderAsync,
+  renderHook,
+  cleanup,
+  act,
+  fireEvent,
+  getConfig,
+  configure,
+}
 
 /* eslint func-name-matching:0 */

@@ -366,6 +366,54 @@ test('handles server exceptions', async () => {
 > to declaratively mock API communication in your tests instead of stubbing
 > `window.fetch`, or relying on third-party adapters.
 
+### Async Server Components
+
+If you need to test `async function` components (React Server Components) or
+components that use React 19's `use()` API, use `renderAsync`:
+
+```jsx
+import {renderAsync, screen} from '@testing-library/react'
+
+// Async server component
+async function Greeting({userId}) {
+  const user = await db.getUser(userId)
+  return <h1>Hello {user.name}</h1>
+}
+
+test('renders async server component', async () => {
+  await renderAsync(<Greeting userId="1" />)
+  expect(screen.getByRole('heading')).toHaveTextContent('Hello Alice')
+})
+```
+
+`renderAsync` pre-resolves `async function` components in the element tree
+before passing them to React's client-side renderer, and wraps the result in a
+Suspense boundary with `act()` so that components using `use()` with promises
+also work:
+
+```jsx
+function UserProfile({userPromise}) {
+  const user = React.use(userPromise)
+  return <div>{user.name}</div>
+}
+
+test('renders component using use()', async () => {
+  await renderAsync(
+    <UserProfile userPromise={Promise.resolve({name: 'Alice'})} />,
+  )
+  expect(screen.getByText('Alice')).toBeInTheDocument()
+})
+```
+
+`renderAsync` returns the same result as `render`, except `rerender` is async:
+
+```jsx
+const {rerender} = await renderAsync(<Greeting userId="1" />)
+await rerender(<Greeting userId="2" />)
+```
+
+Server-only APIs (cookies, headers, etc.) must be mocked in your test setup.
+
 ### More Examples
 
 > We're in the process of moving examples to the

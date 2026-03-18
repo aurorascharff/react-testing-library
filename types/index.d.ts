@@ -271,6 +271,41 @@ export function renderHook<
   options?: RenderHookOptions<Props, Q, Container, BaseElement> | undefined,
 ): RenderHookResult<Result, Props>
 
+export type RenderAsyncResult<
+  Q extends Queries = typeof queries,
+  Container extends RendererableContainer | HydrateableContainer = HTMLElement,
+  BaseElement extends RendererableContainer | HydrateableContainer = Container,
+> = Omit<RenderResult<Q, Container, BaseElement>, 'rerender'> & {
+  rerender: (ui: React.ReactNode) => Promise<void>
+}
+
+/**
+ * Render async React Server Components and components using `use()` by
+ * resolving async function components in the element tree and wrapping
+ * the result in a Suspense boundary with `act()`.
+ *
+ * Handles:
+ * - `async function` server components (including nested/deeply nested)
+ * - Components that call `use(promise)` for data loading
+ * - Mixed trees of async server components, `use()`-based components,
+ *   and regular client components
+ *
+ * Server-only APIs (cookies, headers, etc.) must be mocked in your test
+ * setup.
+ */
+export function renderAsync<
+  Q extends Queries = typeof queries,
+  Container extends RendererableContainer | HydrateableContainer = HTMLElement,
+  BaseElement extends RendererableContainer | HydrateableContainer = Container,
+>(
+  ui: React.ReactNode,
+  options: RenderOptions<Q, Container, BaseElement>,
+): Promise<RenderAsyncResult<Q, Container, BaseElement>>
+export function renderAsync(
+  ui: React.ReactNode,
+  options?: Omit<RenderOptions, 'queries'> | undefined,
+): Promise<RenderAsyncResult>
+
 /**
  * Unmounts React trees that were mounted with render.
  */
