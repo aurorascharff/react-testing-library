@@ -343,7 +343,11 @@ async function resolveElement(element) {
 
   if (typeof element.type === 'function' && isAsyncFunction(element.type)) {
     const resolved = await element.type({...element.props})
-    return resolveElement(resolved)
+    const resolvedElement = await resolveElement(resolved)
+    if (element.key != null && React.isValidElement(resolvedElement)) {
+      return React.cloneElement(resolvedElement, {key: element.key})
+    }
+    return resolvedElement
   }
 
   return resolveElementProps(element)
@@ -359,6 +363,12 @@ async function resolveElementProps(element) {
     keys.map(key => {
       const value = element.props[key]
       if (React.isValidElement(value)) {
+        return resolveElement(value).then(resolved => ({
+          value: resolved,
+          changed: resolved !== value,
+        }))
+      }
+      if (Array.isArray(value) && value.some(React.isValidElement)) {
         return resolveElement(value).then(resolved => ({
           value: resolved,
           changed: resolved !== value,

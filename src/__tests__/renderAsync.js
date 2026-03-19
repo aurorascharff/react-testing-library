@@ -260,6 +260,32 @@ describe('renderAsync', () => {
     expect(screen.getByTestId('content')).toHaveTextContent('Content')
   })
 
+  test('resolves async components in array-valued props', async () => {
+    async function AsyncTab({label}) {
+      return <li data-testid={`tab-${label}`}>{label}</li>
+    }
+
+    function SyncTab({label}) {
+      return <li data-testid={`tab-${label}`}>{label}</li>
+    }
+
+    function TabBar({tabs}) {
+      return <ul data-testid="tab-bar">{tabs}</ul>
+    }
+
+    await renderAsync(
+      <TabBar
+        tabs={[
+          <AsyncTab key="async" label="async" />,
+          <SyncTab key="sync" label="sync" />,
+        ]}
+      />,
+    )
+    expect(screen.getByTestId('tab-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-async')).toHaveTextContent('async')
+    expect(screen.getByTestId('tab-sync')).toHaveTextContent('sync')
+  })
+
   test('passes through non-element objects in children unchanged', async () => {
     function Container({children}) {
       return <div data-testid="container">{String(children)}</div>
